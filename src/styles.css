@@ -4,13 +4,8 @@
   background: #f3f6fb;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
+* { box-sizing: border-box; }
+body { margin: 0; }
 
 .page {
   min-height: 100vh;
@@ -20,7 +15,7 @@ body {
 }
 
 .card {
-  width: min(680px, 100%);
+  width: min(760px, 100%);
   padding: 3rem;
   border-radius: 28px;
   background: white;
@@ -37,21 +32,45 @@ body {
 
 h1 {
   margin: 0;
-  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-size: clamp(2.4rem, 6vw, 4.6rem);
   line-height: 0.95;
 }
 
 .lead {
-  margin: 1.25rem 0 2rem;
+  margin: 1.25rem 0 1.5rem;
   font-size: 1.15rem;
   line-height: 1.7;
   color: #526079;
 }
 
+.status {
+  display: inline-flex;
+  margin-bottom: 1.25rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  background: #e8fbf8;
+  color: #08786f;
+  font-weight: 700;
+}
+
+.message-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+}
+
+input {
+  min-width: 0;
+  border: 1px solid #dbe2ef;
+  border-radius: 999px;
+  padding: 0.9rem 1rem;
+  font: inherit;
+}
+
 button {
   border: 0;
   border-radius: 999px;
-  padding: 0.9rem 1.35rem;
+  padding: 0.9rem 1.25rem;
   font: inherit;
   font-weight: 700;
   color: white;
@@ -59,8 +78,44 @@ button {
   cursor: pointer;
 }
 
-button:hover {
-  transform: translateY(-1px);
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+button:hover:not(:disabled) { transform: translateY(-1px); }
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.secondary {
+  background: #eef2f8;
+  color: #172033;
+}
+
+.messages {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.messages li {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+  border: 1px solid #eef2f8;
+  border-radius: 16px;
+  background: #fbfcff;
+}
+
+.messages span {
+  color: #6d7890;
+  font-size: 0.9rem;
 }
 
 .deploy-note {
@@ -74,4 +129,9 @@ button:hover {
 code {
   color: #172033;
   font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .card { padding: 2rem; }
+  .message-form { grid-template-columns: 1fr; }
 }
