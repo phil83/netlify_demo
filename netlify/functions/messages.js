@@ -1,71 +1,47 @@
-import { getStore } from '@netlify/blobs';
+import { db, ensureSchema } from "./lib/db.js";
 
-const STORE_NAME = 'demo-database';
-const MESSAGES_KEY = 'messages.json';
-
-function json(data, init = {}) {
-  return Response.json(data, {
-    ...init,
-    headers: {
-      'cache-control': 'no-store',
-      ...(init.headers || {})
-    }
-  });
+function json(data, status = 200) {
+  return Response.json(data, { status });
 }
 
-async function readMessages() {
-  const store = getStore({ name: STORE_NAME, consistency: 'strong' });
-  const raw = await store.get(MESSAGES_KEY, { consistency: 'strong' });
-  if (!raw) return [];
-
+export default async function handler(request) {
   try {
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
+    await ensureSchema();
 
-async function writeMessages(messages) {
-  const store = getStore({ name: STORE_NAME, consistency: 'strong' });
-  await store.set(MESSAGES_KEY, JSON.stringify(messages, null, 2), {
-    metadata: { contentType: 'application/json' }
-  });
-}
-
-export default async (request) => {
-  try {
-    if (request.method === 'GET') {
-      const messages = await readMessages();
-      return json({ messages });
+    if (request.method === "GET") {
+      const rows = await db.sql`
+        SELECT id, text, created_at
+        FROM messages
+        ORDER BY created_at DESC
+        LIMIT 50
+      `;
+      return json({ messages: rows });
     }
 
-    if (request.method === 'POST') {
+    if (request.method === "POST") {
       const body = await request.json().catch(() => ({}));
-      const text = String(body.text || '').trim();
+      const text = String(body.text || "").trim();
+      if (!text) return json({ error: "Text is required." }, 400);
+      if (text.length > 500) return json({ error: "Text must be 500 characters or fewer." }, 400);
 
-      if (!text) {
-        return json({ error: 'Message text is required.' }, { status: 400 });
-      }
-
-      const messages = await readMessages();
-      const message = {
-        id: crypto.randomUUID(),
-        text: text.slice(0, 280),
-        createdAt: new Date().toISOString()
-      };
-
-      const nextMessages = [message, ...messages].slice(0, 25);
-      await writeMessages(nextMessages);
-      return json({ message, messages: nextMessages }, { status: 201 });
+      const rows = await db.sql`
+        INSERT INTO messages (text)
+        VALUES (${text})
+        RETURNING id, text, created_at
+      `;
+      return json({ message: rows[0] }, 201);
     }
 
-    if (request.method === 'DELETE') {
-      await writeMessages([]);
-      return json({ messages: [] });
+    if (request.method === "DELETE") {
+      const url = new URL(request.url);
+      const id = url.searchParams.get("id");
+      if (!id) return json({ error: "Missing id query parameter." }, 400);
+      const rows = await db.sql`DELETE FROM messages WHERE id = ${id} RETURNING id`;
+      return json({ deleted: rows.length > 0, id });
     }
 
-    return json({ error: 'Method not allowed.' }, { status: 405 });
+    return json({ error: "Method not allowed." }, 405);
   } catch (error) {
-    return json({ error: error.message || 'Unexpected server error.' }, { status: 500 });
+    return json({ error: error.message }, 500);
   }
-};
+}

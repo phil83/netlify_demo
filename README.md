@@ -1,58 +1,88 @@
-# Netlify Full-Stack Demo Project
+# Netlify Database Demo
 
-A Vite + React app configured for Netlify with:
+A working full-stack demo using:
 
-- Static frontend
+- React + Vite frontend
 - Netlify Functions backend
-- Netlify Blobs database-style key/value storage
+- Netlify Database managed Postgres
+- `@netlify/database` for database access
 
-## Local development
+## Prerequisites
+
+- Node.js 18+
+- A Netlify site with Netlify Database already created
+- Netlify CLI login/link for local testing
+
+## Install
 
 ```bash
 npm install
-npm run dev
 ```
 
-Open the local Netlify Dev URL, usually `http://localhost:8888`.
-
-## Backend endpoints
-
-- `GET /.netlify/functions/health` - health check
-- `GET /.netlify/functions/messages` - list messages
-- `POST /.netlify/functions/messages` - save a message
-- `DELETE /.netlify/functions/messages` - clear messages
-
-Example POST body:
-
-```json
-{
-  "text": "Hello from the backend"
-}
-```
-
-## Database
-
-The demo uses Netlify Blobs as a simple database. Messages are stored in:
-
-```text
-store: demo-database
-key: messages.json
-```
-
-Netlify automatically provides Blobs access inside deployed Netlify Functions. Locally, use `netlify dev` so the functions and local Blobs sandbox are wired up correctly.
-
-## Build
+## Connect this folder to your Netlify site
 
 ```bash
-npm run build
+npx netlify login
+npx netlify link
 ```
 
-## Deploy to Netlify
+Choose the site where you created the Netlify Database.
 
-Use these Netlify settings:
+## Run locally
 
-- Build command: `npm run build`
-- Publish directory: `dist`
-- Functions directory: `netlify/functions`
+```bash
+npx netlify dev
+```
 
-The included `netlify.toml` already defines these settings.
+Open:
+
+```text
+http://localhost:8888
+```
+
+API endpoints:
+
+```text
+GET    /api/health
+GET    /api/messages
+POST   /api/messages       { "text": "Hello" }
+DELETE /api/messages?id=1
+```
+
+## Deploy
+
+Push the project to GitHub and connect it in Netlify, or deploy with:
+
+```bash
+npx netlify deploy --build
+```
+
+Production deploy:
+
+```bash
+npx netlify deploy --build --prod
+```
+
+## Database schema
+
+The app auto-creates this table from the Functions, and also includes the migration file:
+
+```sql
+CREATE TABLE IF NOT EXISTS messages (
+  id BIGSERIAL PRIMARY KEY,
+  text TEXT NOT NULL CHECK (char_length(text) <= 500),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+Migration file location:
+
+```text
+netlify/database/migrations/001_create_messages.sql
+```
+
+## Important notes
+
+Netlify Database uses dynamic database branches for local development, deploy previews, and production. The `@netlify/database` package automatically connects to the right database for the current Netlify environment.
+
+Do not commit `node_modules`, `.netlify`, `dist`, or `.env`.

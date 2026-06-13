@@ -1,20 +1,20 @@
 {
-  "name": "netlify-demo",
-  "version": "1.1.0",
+  "name": "netlify-database-demo",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "netlify dev",
-    "vite": "vite --host 0.0.0.0",
+    "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview",
+    "netlify:dev": "netlify dev"
   },
   "dependencies": {
-    "@netlify/blobs": "latest",
     "@vitejs/plugin-react": "latest",
     "vite": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "@netlify/database": "latest"
   },
   "devDependencies": {
     "netlify-cli": "latest"
