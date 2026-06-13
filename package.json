@@ -10,11 +10,16 @@
     "netlify:dev": "netlify dev"
   },
   "dependencies": {
+    "@netlify/database": "^1.0.0",
     "@netlify/neon": "^0.1.2",
     "@vitejs/plugin-react": "latest",
+    "drizzle-orm": "^1.0.0-beta.22",
     "netlify-identity-widget": "latest",
     "react": "latest",
     "react-dom": "latest",
     "vite": "latest"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^1.0.0-beta.22"
   }
 }
