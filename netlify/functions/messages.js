@@ -1,69 +1,112 @@
-import { sql } from './lib/db.js';
-import { requireUser } from './lib/auth.js';
+import { neon } from "@netlify/neon";
 
-export default async (request, context) => {
-  const auth = await requireUser(context);
-  if (auth.error) return auth.error;
-  const user = auth.user;
+const sql = neon(process.env.NETLIFY_DATABASE_URL);
 
-  if (request.method === 'GET') {
-    await ensureTable();
-    const messages = await sql`
-      SELECT id, text, created_at
-      FROM messages
-      WHERE user_id = ${user.id}
-      ORDER BY created_at DESC
-    `;
-    return Response.json({ messages });
+async function getUser(event) {
+  const auth = event.headers.authorization || "";
+
+  if (!auth.startsWith("Bearer ")) {
+    return null;
   }
 
-  if (request.method === 'POST') {
-    await ensureTable();
-    const body = await request.json().catch(() => ({}));
-    const text = String(body.text || '').trim();
+  const token = auth.replace("Bearer ", "");
 
-    if (!text) {
-      return Response.json({ error: 'Message text is required.' }, { status: 400 });
-    }
+  // Netlify Identity injects user info into context when JWT is valid.
+  // For now we decode the JWT payload to get the user id.
+  try {
+    const payload = JSON.parse(
+      Buffer.from(token.split(".")[1], "base64").toString()
+    );
 
-    const rows = await sql`
-      INSERT INTO messages (user_id, user_email, text)
-      VALUES (${user.id}, ${user.email}, ${text})
-      RETURNING id, text, created_at
-    `;
-
-    return Response.json({ message: rows[0] }, { status: 201 });
+    return {
+      id: payload.sub,
+      email: payload.email,
+    };
+  } catch {
+    return null;
   }
-
-  if (request.method === 'DELETE') {
-    await ensureTable();
-    const url = new URL(request.url);
-    const id = url.searchParams.get('id');
-
-    if (!id) {
-      return Response.json({ error: 'Message id is required.' }, { status: 400 });
-    }
-
-    const rows = await sql`
-      DELETE FROM messages
-      WHERE id = ${id} AND user_id = ${user.id}
-      RETURNING id
-    `;
-
-    return Response.json({ deleted: rows.length > 0 });
-  }
-
-  return Response.json({ error: 'Method not allowed.' }, { status: 405 });
-};
+}
 
 async function ensureTable() {
   await sql`
     CREATE TABLE IF NOT EXISTS messages (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      id SERIAL PRIMARY KEY,
       user_id TEXT NOT NULL,
-      user_email TEXT NOT NULL,
+      email TEXT,
       text TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+      created_at TIMESTAMP DEFAULT NOW()
+    );
   `;
 }
+
+export default async (request, context) => {
+  try {
+    const user = await getUser({
+      headers: Object.fromEntries(request.headers.entries()),
+    });
+
+    if (!user) {
+      return Response.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    await ensureTable();
+
+    // GET messages
+    if (request.method === "GET") {
+      const messages = await sql`
+        SELECT *
+        FROM messages
+        WHERE user_id = ${user.id}
+        ORDER BY created_at DESC
+      `;
+
+      return Response.json(messages);
+    }
+
+    // POST message
+    if (request.method === "POST") {
+      const body = await request.json();
+
+      if (!body.text?.trim()) {
+        return Response.json(
+          { error: "Message text required" },
+          { status: 400 }
+        );
+      }
+
+      const result = await sql`
+        INSERT INTO messages (
+          user_id,
+          email,
+          text
+        )
+        VALUES (
+          ${user.id},
+          ${user.email},
+          ${body.text}
+        )
+        RETURNING *
+      `;
+
+      return Response.json(result[0]);
+    }
+
+    return Response.json(
+      { error: "Method not allowed" },
+      { status: 405 }
+    );
+  } catch (error) {
+    console.error(error);
+
+    return Response.json(
+      {
+        error: error.message,
+        stack: error.stack,
+      },
+      { status: 500 }
+    );
+  }
+};

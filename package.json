@@ -10,12 +10,11 @@
     "netlify:dev": "netlify dev"
   },
   "dependencies": {
-    "@netlify/database": "latest",
-    "netlify-identity-widget": "latest",
+    "@netlify/neon": "^0.1.2",
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
+    "netlify-identity-widget": "latest",
     "react": "latest",
-    "react-dom": "latest"
-  },
-  "devDependencies": {}
+    "react-dom": "latest",
+    "vite": "latest"
+  }
 }
