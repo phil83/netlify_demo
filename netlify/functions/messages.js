@@ -1,6 +1,4 @@
-import { neon } from "@netlify/neon";
-
-const sql = neon(process.env.NETLIFY_DATABASE_URL);
+import { db } from "@netlify/database";
 
 async function getUser(event) {
   const auth = event.headers.authorization || "";
@@ -28,7 +26,7 @@ async function getUser(event) {
 }
 
 async function ensureTable() {
-  await sql`
+  await db.sql`
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -56,7 +54,7 @@ export default async (request, context) => {
 
     // GET messages
     if (request.method === "GET") {
-      const messages = await sql`
+      const messages = await db.sql`
         SELECT *
         FROM messages
         WHERE user_id = ${user.id}
@@ -77,7 +75,7 @@ export default async (request, context) => {
         );
       }
 
-      const result = await sql`
+      const result = await db.sql`
         INSERT INTO messages (
           user_id,
           email,
