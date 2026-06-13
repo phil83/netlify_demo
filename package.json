@@ -1,25 +1,21 @@
 {
-  "name": "netlify-identity-database-demo",
+  "name": "netlify-identity-db-working",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview",
-    "netlify:dev": "netlify dev"
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@netlify/database": "^1.0.0",
-    "@netlify/neon": "^0.1.2",
+    "@netlify/database": "latest",
+    "@netlify/identity": "latest",
     "@vitejs/plugin-react": "latest",
-    "drizzle-orm": "^1.0.0-beta.22",
-    "netlify-identity-widget": "latest",
+    "vite": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "vite": "latest"
+    "netlify-identity-widget": "latest"
   },
-  "devDependencies": {
-    "drizzle-kit": "^1.0.0-beta.22"
-  }
+  "devDependencies": {}
 }

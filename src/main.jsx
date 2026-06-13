@@ -1,52 +1,68 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import netlifyIdentity from 'netlify-identity-widget';
-import './style.css';
+import './styles.css';
+
+netlifyIdentity.init();
 
 function App() {
-  const [user, setUser] = useState(null);
-  const [status, setStatus] = useState('');
+  const [user, setUser] = useState(netlifyIdentity.currentUser());
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
+  const [status, setStatus] = useState('Ready');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    netlifyIdentity.init();
-    setUser(netlifyIdentity.currentUser());
-
-    netlifyIdentity.on('login', (loggedInUser) => {
-      setUser(loggedInUser);
+    const onLogin = (u) => {
       netlifyIdentity.close();
-    });
-
-    netlifyIdentity.on('logout', () => {
+      setUser(u);
+    };
+    const onLogout = () => {
       setUser(null);
       setMessages([]);
-    });
+    };
+
+    netlifyIdentity.on('login', onLogin);
+    netlifyIdentity.on('logout', onLogout);
+
+    return () => {
+      netlifyIdentity.off('login', onLogin);
+      netlifyIdentity.off('logout', onLogout);
+    };
   }, []);
 
-  useEffect(() => {
-    if (user) loadMessages();
-  }, [user]);
+  const email = useMemo(() => user?.email || user?.user_metadata?.full_name || '', [user]);
 
-  async function authHeaders() {
-    const currentUser = netlifyIdentity.currentUser();
-    if (!currentUser) return {};
-    const token = await currentUser.jwt();
-    return { Authorization: `Bearer ${token}` };
+  async function authFetch(url, options = {}) {
+    if (!user) throw new Error('Please log in first.');
+    const token = await user.jwt();
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(options.headers || {})
+      }
+    });
+
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || `Request failed with ${response.status}`);
+    }
+    return body;
   }
 
   async function loadMessages() {
-    setStatus('Loading messages...');
     try {
-      const res = await fetch('/api/messages', {
-        headers: await authHeaders(),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load messages');
+      setLoading(true);
+      setStatus('Loading messages...');
+      const data = await authFetch('/api/messages');
       setMessages(data.messages || []);
-      setStatus('');
+      setStatus(`Loaded ${(data.messages || []).length} message(s).`);
     } catch (error) {
       setStatus(error.message);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -54,93 +70,102 @@ function App() {
     event.preventDefault();
     if (!text.trim()) return;
 
-    setStatus('Saving message...');
     try {
-      const res = await fetch('/api/messages', {
+      setLoading(true);
+      setStatus('Saving message...');
+      await authFetch('/api/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(await authHeaders()),
-        },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save message');
       setText('');
-      setMessages((current) => [data.message, ...current]);
-      setStatus('Saved.');
+      await loadMessages();
     } catch (error) {
       setStatus(error.message);
+    } finally {
+      setLoading(false);
     }
   }
 
   async function deleteMessage(id) {
-    setStatus('Deleting message...');
     try {
-      const res = await fetch(`/api/messages?id=${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-        headers: await authHeaders(),
+      setLoading(true);
+      setStatus('Deleting message...');
+      await authFetch(`/api/messages?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE'
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to delete message');
-      setMessages((current) => current.filter((message) => message.id !== id));
-      setStatus('Deleted.');
+      await loadMessages();
     } catch (error) {
       setStatus(error.message);
+    } finally {
+      setLoading(false);
     }
   }
 
+  useEffect(() => {
+    if (user) loadMessages();
+  }, [user]);
+
   return (
     <main className="container">
-      <section className="hero">
+      <section className="card hero">
         <p className="eyebrow">Netlify full-stack demo</p>
         <h1>Identity + Database</h1>
         <p>
-          Log in with Netlify Identity, then create private messages stored in Netlify Database.
+          Sign up or log in with Netlify Identity, then save private messages to Netlify Database.
         </p>
+
+        <div className="actions">
+          {!user ? (
+            <>
+              <button onClick={() => netlifyIdentity.open('signup')}>Sign up</button>
+              <button className="secondary" onClick={() => netlifyIdentity.open('login')}>Log in</button>
+            </>
+          ) : (
+            <>
+              <span className="pill">Logged in as {email}</span>
+              <button className="secondary" onClick={() => netlifyIdentity.logout()}>Log out</button>
+            </>
+          )}
+        </div>
       </section>
 
       <section className="card">
-        {user ? (
-          <>
-            <p className="signed-in">Signed in as <strong>{user.email}</strong></p>
-            <button onClick={() => netlifyIdentity.logout()}>Log out</button>
-          </>
+        <h2>Messages</h2>
+        {!user ? (
+          <p>Please log in to access your database-backed messages.</p>
         ) : (
           <>
-            <p>You must log in before calling the protected backend.</p>
-            <button onClick={() => netlifyIdentity.open('login')}>Log in / sign up</button>
+            <form onSubmit={addMessage} className="form">
+              <input
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="Write a private message..."
+                disabled={loading}
+              />
+              <button disabled={loading || !text.trim()}>Save</button>
+            </form>
+
+            <button className="secondary small" onClick={loadMessages} disabled={loading}>
+              Refresh
+            </button>
+
+            <ul className="messages">
+              {messages.map((message) => (
+                <li key={message.id}>
+                  <div>
+                    <strong>{message.text}</strong>
+                    <small>{new Date(message.created_at).toLocaleString()}</small>
+                  </div>
+                  <button className="danger small" onClick={() => deleteMessage(message.id)} disabled={loading}>
+                    Delete
+                  </button>
+                </li>
+              ))}
+            </ul>
           </>
         )}
+        <p className="status">{status}</p>
       </section>
-
-      {user && (
-        <section className="card">
-          <h2>Your messages</h2>
-          <form onSubmit={addMessage} className="message-form">
-            <input
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Write a private message..."
-            />
-            <button type="submit">Save</button>
-          </form>
-
-          {status && <p className="status">{status}</p>}
-
-          <ul className="messages">
-            {messages.map((message) => (
-              <li key={message.id}>
-                <span>{message.text}</span>
-                <small>{new Date(message.created_at).toLocaleString()}</small>
-                <button className="danger" onClick={() => deleteMessage(message.id)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-
-          {messages.length === 0 && !status && <p>No messages yet.</p>}
-        </section>
-      )}
     </main>
   );
 }

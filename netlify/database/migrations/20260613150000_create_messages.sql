@@ -5,3 +5,6 @@ CREATE TABLE IF NOT EXISTS messages (
   text TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS messages_user_created_idx
+  ON messages (user_id, created_at DESC);
