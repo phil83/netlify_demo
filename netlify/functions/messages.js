@@ -1,47 +1,69 @@
-import { db, ensureSchema } from "./lib/db.js";
+import { sql } from './lib/db.js';
+import { requireUser } from './lib/auth.js';
 
-function json(data, status = 200) {
-  return Response.json(data, { status });
-}
+export default async (request, context) => {
+  const auth = await requireUser(context);
+  if (auth.error) return auth.error;
+  const user = auth.user;
 
-export default async function handler(request) {
-  try {
-    await ensureSchema();
-
-    if (request.method === "GET") {
-      const rows = await db.sql`
-        SELECT id, text, created_at
-        FROM messages
-        ORDER BY created_at DESC
-        LIMIT 50
-      `;
-      return json({ messages: rows });
-    }
-
-    if (request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
-      const text = String(body.text || "").trim();
-      if (!text) return json({ error: "Text is required." }, 400);
-      if (text.length > 500) return json({ error: "Text must be 500 characters or fewer." }, 400);
-
-      const rows = await db.sql`
-        INSERT INTO messages (text)
-        VALUES (${text})
-        RETURNING id, text, created_at
-      `;
-      return json({ message: rows[0] }, 201);
-    }
-
-    if (request.method === "DELETE") {
-      const url = new URL(request.url);
-      const id = url.searchParams.get("id");
-      if (!id) return json({ error: "Missing id query parameter." }, 400);
-      const rows = await db.sql`DELETE FROM messages WHERE id = ${id} RETURNING id`;
-      return json({ deleted: rows.length > 0, id });
-    }
-
-    return json({ error: "Method not allowed." }, 405);
-  } catch (error) {
-    return json({ error: error.message }, 500);
+  if (request.method === 'GET') {
+    await ensureTable();
+    const messages = await sql`
+      SELECT id, text, created_at
+      FROM messages
+      WHERE user_id = ${user.id}
+      ORDER BY created_at DESC
+    `;
+    return Response.json({ messages });
   }
+
+  if (request.method === 'POST') {
+    await ensureTable();
+    const body = await request.json().catch(() => ({}));
+    const text = String(body.text || '').trim();
+
+    if (!text) {
+      return Response.json({ error: 'Message text is required.' }, { status: 400 });
+    }
+
+    const rows = await sql`
+      INSERT INTO messages (user_id, user_email, text)
+      VALUES (${user.id}, ${user.email}, ${text})
+      RETURNING id, text, created_at
+    `;
+
+    return Response.json({ message: rows[0] }, { status: 201 });
+  }
+
+  if (request.method === 'DELETE') {
+    await ensureTable();
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
+
+    if (!id) {
+      return Response.json({ error: 'Message id is required.' }, { status: 400 });
+    }
+
+    const rows = await sql`
+      DELETE FROM messages
+      WHERE id = ${id} AND user_id = ${user.id}
+      RETURNING id
+    `;
+
+    return Response.json({ deleted: rows.length > 0 });
+  }
+
+  return Response.json({ error: 'Method not allowed.' }, { status: 405 });
+};
+
+async function ensureTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS messages (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id TEXT NOT NULL,
+      user_email TEXT NOT NULL,
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
 }

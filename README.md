@@ -1,34 +1,36 @@
-# Netlify Database Demo
+# Netlify Identity + Netlify Database Demo
 
-A working full-stack demo using:
+A working full-stack Netlify demo with:
 
 - React + Vite frontend
-- Netlify Functions backend
-- Netlify Database managed Postgres
-- `@netlify/database` for database access
+- Netlify Identity login/sign-up
+- Protected Netlify Functions API
+- Netlify Database/Postgres storage via `@netlify/database`
+- Private messages per authenticated user
 
-## Prerequisites
-
-- Node.js 18+
-- A Netlify site with Netlify Database already created
-- Netlify CLI login/link for local testing
-
-## Install
+## 1. Install
 
 ```bash
 npm install
 ```
 
-## Connect this folder to your Netlify site
+## 2. Link the project to your Netlify site
+
+You need a Netlify site with:
+
+- Netlify Identity enabled
+- Netlify Database created
+
+Then run:
 
 ```bash
 npx netlify login
 npx netlify link
 ```
 
-Choose the site where you created the Netlify Database.
+Choose the existing Netlify site where you enabled Identity and created the database.
 
-## Run locally
+## 3. Run locally
 
 ```bash
 npx netlify dev
@@ -40,49 +42,86 @@ Open:
 http://localhost:8888
 ```
 
-API endpoints:
+Netlify Dev runs the Vite frontend and Functions locally.
+
+## 4. Enable Identity in Netlify
+
+In your Netlify dashboard:
 
 ```text
-GET    /api/health
-GET    /api/messages
-POST   /api/messages       { "text": "Hello" }
-DELETE /api/messages?id=1
+Site configuration → Identity → Enable Identity
 ```
 
-## Deploy
+Recommended settings for testing:
 
-Push the project to GitHub and connect it in Netlify, or deploy with:
+```text
+Registration → Open
+```
+
+For production, you may prefer invite-only registration.
+
+## 5. Initialize the database
+
+The `messages` function auto-creates the table, but you can also initialize manually:
+
+```bash
+curl http://localhost:8888/.netlify/functions/init-db
+```
+
+or after deploy:
+
+```bash
+curl https://YOUR-SITE.netlify.app/.netlify/functions/init-db
+```
+
+## 6. Deploy
 
 ```bash
 npx netlify deploy --build
 ```
 
-Production deploy:
+For production:
 
 ```bash
 npx netlify deploy --build --prod
 ```
 
-## Database schema
+## How auth works
 
-The app auto-creates this table from the Functions, and also includes the migration file:
+The frontend uses `netlify-identity-widget`.
 
-```sql
-CREATE TABLE IF NOT EXISTS messages (
-  id BIGSERIAL PRIMARY KEY,
-  text TEXT NOT NULL CHECK (char_length(text) <= 500),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+After login, it sends the user JWT in the `Authorization` header:
+
+```http
+Authorization: Bearer <token>
 ```
 
-Migration file location:
+Netlify Functions receive the verified user in:
+
+```js
+context.clientContext.user
+```
+
+The backend rejects requests without a valid logged-in user.
+
+## API routes
+
+Because of `netlify.toml`, the frontend can call short API URLs:
 
 ```text
-netlify/database/migrations/001_create_messages.sql
+GET    /api/messages
+POST   /api/messages
+DELETE /api/messages?id=<message-id>
 ```
 
-## Important notes
+These map to:
 
-Netlify Database uses dynamic database branches for local development, deploy previews, and production. The `@netlify/database` package automatically connects to the right database for the current Netlify environment.
+```text
+/.netlify/functions/messages
+```
 
-Do not commit `node_modules`, `.netlify`, `dist`, or `.env`.
+## Notes
+
+- Do not commit `.env` or `.netlify/`.
+- Keep `node_modules/` out of Git.
+- The database connection is handled by Netlify through `@netlify/database` after the site is linked.

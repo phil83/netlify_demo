@@ -1,5 +1,5 @@
 {
-  "name": "netlify-database-demo",
+  "name": "netlify-identity-database-demo",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -10,13 +10,12 @@
     "netlify:dev": "netlify dev"
   },
   "dependencies": {
+    "@netlify/database": "latest",
+    "netlify-identity-widget": "latest",
     "@vitejs/plugin-react": "latest",
     "vite": "latest",
     "react": "latest",
-    "react-dom": "latest",
-    "@netlify/database": "latest"
+    "react-dom": "latest"
   },
-  "devDependencies": {
-    "netlify-cli": "latest"
-  }
+  "devDependencies": {}
 }
